@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+# Enable full hardening.
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cd src && make all
+
+override_dh_auto_install:
+	dh_auto_install
+	cp -a data/icon.png debian/prince-of-persia.png
+
+override_dh_auto_clean:
+	dh_auto_clean
+	cd src && make clean
+	rm -rf debian/prince-of-persia.png

@@ -1,0 +1,5 @@
+prince-of-persia (1.21~20200620-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #963225)
+
+ -- Kees Cook <kees@debian.org>  Sat, 20 Jun 2020 12:46:18 -0700

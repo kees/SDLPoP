@@ -1,0 +1,172 @@
+.TH PRINCE 6
+.SH NAME
+prince \- SDL port of the classic Prince of Persia game
+.SH SYNOPSIS
+.B prince
+[\fBOPTIONS\fR]
+.SH DESCRIPTION
+.B prince
+Prince of Persia is a fantasy cinematic platformer designed and
+implemented by Jordan Mechner for the Apple II in 1989. Taking place in
+ancient Persia, players control an unnamed protagonist who must venture
+through a series of dungeons to defeat the Grand Vizier Jaffar and save
+an imprisoned princess.
+.SH OPTIONS
+.TP
+.BR megahit
+Enable cheats
+.TP
+.BR [\fB0-15\fR]
+Start at the given level (if cheats are enabled).
+.TP
+.BR draw
+Draw directly to the screen, skipping the offscreen buffer.
+.TP
+.BR full
+Run in full screen mode.
+.TP
+.BR demo
+Run in demo mode: only the first two levels will be playable, and quotes
+from magazine reviews will be displayed.
+.TP
+.BR record
+Start recording immediately. (For capturing a replay.)
+.TP
+.BR replay ", " [\fBFILENAME.P1R\fR]
+Start replaying immediately. (For displaying a reply.)
+.TP
+.BR validate
+Validate "replays/replay.p1r": print out information about a replay file
+and quit.
+.TP
+.BR mod " " \fBMOD_NAME\fR
+Run with custom data files from the folder "mods/\fBMOD_NAME\fR"
+.TP
+.BR debug
+Enable debug cheats.
+.TP
+.BR \-\-version ", " \-v
+Display version and quit.
+.TP
+.BR \-\-help ", " \-h ", " \-?
+Display reminder about this man-page and quit.
+.TP
+.BR seed=\fBnumber\fR
+Set initial random seed, for testing.
+.TP
+.BR \-\-screenshot
+Must be used with \fBmegahit\fR and a level number. When the level starts,
+a screenshot is saved to the screenshots folder and the game quits.
+.TP
+.BR \-\-screenshot\-level
+Similar to the above, except the whole level is screenshotted, thus
+creating a level map.
+.TP
+.BR \-\-screenshot\-level\-extras
+Similar to the above, except lots of additional info is displayed on the picture.
+You can find the meaning of each symbol in Map_Symbols.txt.
+.TP
+.BR stdsnd
+Use PC speaker sounds.
+
+.SH KEYBOARD CONTROLS
+.TP
+.BR left
+turn or run left
+.TP
+.BR right
+turn or run right
+.TP
+.BR up
+jump or climb up
+.TP
+.BR down
+crouch or climb down
+.TP
+.BR shift
+pick up things
+.TP
+.BR shift " (while falling)"
+grab onto ledge and hang
+.TP
+.BR shift+left/right
+careful step
+.TP
+.BR home ", " up+left
+jump left
+.TP
+.BR page\-up ", " up+right
+jump right
+.TP
+.BR Esc
+pause game
+.TP
+.BR Space
+show time left
+.TP
+.BR Ctrl\-A
+restart level
+.TP
+.BR Ctrl\-G
+save game (on levels 3..13)
+.TP
+.BR Ctrl\-J
+joystick/gamepad mode
+.TP
+.BR Ctrl\-K
+keyboard mode (the initial mode is joystick/gamepad if such a device is
+detected, otherwise keyboard mode. The game will automatically change
+input mode when there is input from either device.
+.TP
+.BR Ctrl\-R
+return to intro
+.TP
+.BR Ctrl\-S
+sound on/off
+.TP
+.BR Ctrl\-V
+show version of SDLPoP
+.TP
+.BR Ctrl\-C
+show versions of SDL
+.BR Ctrl\-Q
+quit game
+.TP
+.BR Ctrl\-L
+load game (when in the intro)
+.TP
+.BR Alt\-Enter
+toggle fullscreen
+.TP
+.BR F6
+quicksave
+.TP
+.BR F9
+quickload
+.TP
+.BR F12
+Save a screenshot to the screenshots folder.
+.TP
+.BR Backspace
+display in-game menu
+
+.SH GAMEPAGE CONTROLS
+.TP
+.BR D-Pad
+arrows
+.TP
+.BR Joystick
+left/right (for all-directional joystick movement, set
+\fBjoystick_only_horizontal\fR to false in SDLPoP.ini)
+.TP
+.BR Y
+up
+.TP
+.BR A
+down
+.TP
+.BR X ", " triggers
+shift
+.TP
+.BR Start ", " Back
+display in-game menu

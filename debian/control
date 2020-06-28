@@ -1,0 +1,32 @@
+Source: prince-of-persia
+Section: games
+Priority: optional
+Maintainer: Kees Cook <kees@debian.org>
+Build-Depends: debhelper-compat (= 12), libsdl2-image-dev
+Standards-Version: 4.5.0
+Homepage: https://forum.princed.org/viewforum.php?f=126
+Vcs-Browser: https://github.com/NagyD/SDLPoP
+
+Package: prince-of-persia
+Architecture: any
+Depends: prince-of-persia-data (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: SDL port of the classic Prince of Persia game
+ Prince of Persia is a fantasy cinematic platformer designed and
+ implemented by Jordan Mechner for the Apple II in 1989. Taking place in
+ ancient Persia, players control an unnamed protagonist who must venture
+ through a series of dungeons to defeat the Grand Vizier Jaffar and save
+ an imprisoned princess.
+
+Package: prince-of-persia-data
+Architecture: all
+Depends: ${misc:Depends}
+Recommends: prince-of-persia
+Description: game data files for the game SDL Prince of Persia
+ Prince of Persia is a fantasy cinematic platformer designed and
+ implemented by Jordan Mechner for the Apple II in 1989. Taking place in
+ ancient Persia, players control an unnamed protagonist who must venture
+ through a series of dungeons to defeat the Grand Vizier Jaffar and save
+ an imprisoned princess.
+ .
+ This package includes the game data, image, sound, and music files.
+

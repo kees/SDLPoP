@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=/usr/games/prince
+Icon=prince-of-persia.png
+Terminal=false
+Name=Prince of Persia
+Comment=SDL port of the classic Prince of Persia game
+Categories=Application;Game;ArcadeGame;
+StartupNotify=true
+Keywords=Game;Arcade

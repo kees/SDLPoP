@@ -1,0 +1,681 @@
+Description: Smashed git commits since 1.20 release, including build fixes
+Author: Kees Cook <kees@debian.org>
+Forwarded: https://github.com/NagyD/SDLPoP/pull/206
+Last-Update: 2020-06-20
+
+--- prince-of-persia-1.20+20200620.orig/doc/ChangeLog.txt
++++ prince-of-persia-1.20+20200620/doc/ChangeLog.txt
+@@ -539,3 +539,13 @@ DONE: Enable use_custom_options by defau
+ FIXED: Fix priorities of sword and spike sounds. (As in PoP 1.3.)
+ 	The "spiked" sound didn't interrupt the normal spikes sound when the prince ran into spikes.
+ 	With PoP 1.3 sounds, the "guard hurt" sound didn't play when you hit a guard directly after parrying.
++
++(no release date yet)
++=================
++(upcoming version)
++
++FIXED: Skeletons not on level 3 did not behave like skeletons.
++FIXED: Don't crash if the intro music is interrupted by Tab in PC Speaker mode.
++FIXED: Don't switch to PC Speaker mode if there is a mod name in the replay file.
++DONE: Detect guard skill customizations in PRINCE.EXE. (Used in Illusions of Persia, for example.)
++	TODO: Should we add the guard skill options to the INI, the CFG, the replays, or the settings menu?
+--- prince-of-persia-1.20+20200620.orig/doc/Readme.txt
++++ prince-of-persia-1.20+20200620/doc/Readme.txt
+@@ -342,7 +342,7 @@ macOS:
+ 		c) Using terminal, in the '/src' directory of SDLPoP, type: make
+ 
+ 	PLAY!
+-		a) Type './prince' or './prince full'.
++		a) In the project root directory. Type './prince' or './prince full'.
+ 		b) Hit Control-Q to quit.
+ 
+-	Tested on OSX 10.9.5, OSX 10.11.2 and macOS 10.13.
++	Tested on OSX 10.9.5, OSX 10.11.2, macOS 10.13 and 10.14.
+--- prince-of-persia-1.20+20200620.orig/src/CMakeLists.txt
++++ prince-of-persia-1.20+20200620/src/CMakeLists.txt
+@@ -114,7 +114,9 @@ else()
+ endif()
+ 
+ if(WIN32)
+-    target_link_libraries(prince mingw32 SDL2main SDL2 SDL2.dll SDL2_image)
+-else()
++    target_link_libraries(prince mingw32 SDL2main SDL2 SDL2_image)
++elif(APPLE)
+     target_link_libraries(prince SDL2main SDL2 SDL2_image m)
++else() # Linux, *BSD, etc.
++    target_link_libraries(prince SDL2 SDL2_image m)
+ endif()
+--- prince-of-persia-1.20+20200620.orig/src/Makefile
++++ prince-of-persia-1.20+20200620/src/Makefile
+@@ -9,14 +9,16 @@ BIN = ../prince
+ 
+ OS      := $(shell uname)
+ 
++CPPFLAGS += -Wall -D_GNU_SOURCE=1
++CFLAGS += -std=gnu99 -O2
++
+ ifeq ($(OS),Darwin)
+ LIBS := $(shell sdl2-config --libs) -lSDL2_image
+-INCS := -I/opt/local/include
+-CFLAGS += $(INCS) -Wall -std=gnu99 -D_GNU_SOURCE=1 -D_THREAD_SAFE -DOSX -O2
++CFLAGS += -I/opt/local/include
++CPPFLAGS += -D_THREAD_SAFE -DOSX
+ else
+ LIBS := $(shell pkg-config --libs   sdl2 SDL2_image)
+-INCS := $(shell pkg-config --cflags sdl2 SDL2_image)
+-CFLAGS += $(INCS) -Wall -std=gnu99 -O2
++CFLAGS += $(shell pkg-config --cflags sdl2 SDL2_image)
+ endif
+ 
+ all: $(BIN)
+@@ -34,7 +36,7 @@ $(BIN): $(OBJ)
+ 	$(CC) $(LDFLAGS) $(OBJ) -o $@ $(LIBS) -lm
+ 
+ %.o: %.c $(HFILES)
+-	$(CC) $(CFLAGS) $(LDFLAGS) -c $<
++	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -c $<
+ 
+ .PHONY: all clean
+ 
+--- prince-of-persia-1.20+20200620.orig/src/common.h
++++ prince-of-persia-1.20+20200620/src/common.h
+@@ -25,7 +25,6 @@ The authors of this program may be conta
+ extern "C" {
+ #endif
+ 
+-
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <fcntl.h>
+@@ -67,6 +66,15 @@ extern "C" {
+ #define ABS(x) ((x)<0?-(x):(x))
+ #endif
+ 
++#define snprintf_check(dst, size, ...)	do {			\
++		int __len;					\
++		__len = snprintf(dst, size, __VA_ARGS__);	\
++		if (__len < 0 || __len >= size) {		\
++			fprintf(stderr, "%s: buffer truncation detected!\n", __func__);\
++			quit(2);				\
++		}						\
++	} while (0)
++
+ #ifdef __cplusplus
+ }
+ #endif
+--- prince-of-persia-1.20+20200620.orig/src/data.h
++++ prince-of-persia-1.20+20200620/src/data.h
+@@ -813,6 +813,15 @@ extern custom_options_type custom_defaul
+ 		.tbl_cutscenes_by_index = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+ 		.tbl_entry_pose = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0},
+ 		.tbl_seamless_exit = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 23, -1, -1, -1},
++
++		// guard skills
++		.strikeprob    = { 61,100, 61, 61, 61, 40,100,220,  0, 48, 32, 48},
++		.restrikeprob  = {  0,  0,  0,  5,  5,175, 16,  8,  0,255,255,150},
++		.blockprob     = {  0,150,150,200,200,255,200,250,  0,255,255,255},
++		.impblockprob  = {  0, 61, 61,100,100,145,100,250,  0,145,255,175},
++		.advprob       = {255,200,200,200,255,255,200,  0,  0,255,100,100},
++		.refractimer   = { 16, 16, 16, 16,  8,  8,  8,  8,  0,  8,  0,  0},
++		.extrastrength = {  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0},
+ });
+ extern custom_options_type* custom INIT(= &custom_defaults);
+ 
+--- prince-of-persia-1.20+20200620.orig/src/menu.c
++++ prince-of-persia-1.20+20200620/src/menu.c
+@@ -117,7 +117,6 @@ int active_settings_subsection = 0;
+ int highlighted_settings_subsection = 0;
+ int scroll_position = 0;
+ int menu_control_y;
+-int menu_control_scroll_y;
+ int menu_control_x;
+ int menu_control_back;
+ 
+@@ -2044,12 +2043,16 @@ void calculate_exe_crc() {
+ 		FILE* exe_file = fopen(g_argv[0], "rb");
+ 		if (exe_file != NULL) {
+ 			fseek(exe_file, 0, SEEK_END);
+-			int size = ftell(exe_file);
++			size_t size = ftell(exe_file);
+ 			fseek(exe_file, 0, SEEK_SET);
+ 			if (size > 0) {
+-				byte* buffer = malloc((size_t)size);
+-				fread(buffer, 1, (size_t)size, exe_file);
+-				exe_crc = crc32c(buffer, (dword)size);
++				byte* buffer = malloc(size);
++				size_t bytes = fread(buffer, 1, size, exe_file);
++				if (bytes != size) {
++					fprintf(stderr, "exec changed size during CRC32!?\n");
++					size = bytes;
++				}
++				exe_crc = crc32c(buffer, size);
+ 				free(buffer);
+ 			}
+ 			fclose(exe_file);
+--- prince-of-persia-1.20+20200620.orig/src/options.c
++++ prince-of-persia-1.20+20200620/src/options.c
+@@ -66,8 +66,12 @@ int ini_load(const char *filename,
+ 				*s = 0;
+ 			report(section, name, value);
+ 		}
+-		fscanf(f, " ;%*[^\n]");
+-		fscanf(f, " \n");
++		if (fscanf(f, " ;%*[^\n]") != 0 ||
++		    fscanf(f, " \n") != 0) {
++			fprintf(stderr, "short read from %s!?\n", filename);
++			fclose(f);
++			return -1;
++		}
+ 	}
+ 
+ 	fclose(f);
+@@ -452,7 +456,7 @@ void check_mod_param() {
+ 	if (mod_param != NULL) {
+ 		use_custom_levelset = true;
+ 		memset(levelset_name, 0, sizeof(levelset_name));
+-		strncpy(levelset_name, mod_param, sizeof(levelset_name));
++		snprintf_check(levelset_name, sizeof(levelset_name), "%s", mod_param);
+ 	}
+ }
+ 
+@@ -521,7 +525,11 @@ void load_dos_exe_modifications(const ch
+ 	if (dos_version >= 0) {
+ 		turn_custom_options_on_off(1);
+ 		byte* exe_memory = malloc((size_t) info.st_size);
+-		fread(exe_memory, (size_t) info.st_size, 1, fp);
++		if (fread(exe_memory, (size_t) info.st_size, 1, fp) != 1) {
++			fprintf(stderr, "Could not read %s!?\n", filename);
++			fclose(fp);
++			return;
++		}
+ 
+ 		byte temp_bytes[64] = {0};
+ 		word temp_word = 0;
+@@ -654,6 +662,16 @@ void load_dos_exe_modifications(const ch
+ 		process(&custom_saved.win_level, 1, {0x011dc, 0x0288c, 0x01397, 0x01ad7, 0x01327, 0x02457});
+ 		process(&custom_saved.win_room, 1, {0x011e3, 0x02893, 0x0139e, 0x01ade, 0x0132e, 0x0245e});
+ 		process(&custom_saved.loose_floor_delay, 1, {0x9536, 0xABE6, -1, -1, -1, -1});
++
++		// guard skills
++		process(&custom_saved.strikeprob   , 2*NUM_GUARD_SKILLS, {-1, 0x1D3C2, -1, 0x1D2B4, -1, 0x19C5E});
++		process(&custom_saved.restrikeprob , 2*NUM_GUARD_SKILLS, {-1, 0x1D3DA, -1, 0x1D2CC, -1, 0x19C76});
++		process(&custom_saved.blockprob    , 2*NUM_GUARD_SKILLS, {-1, 0x1D3F2, -1, 0x1D2E4, -1, 0x19C8E});
++		process(&custom_saved.impblockprob , 2*NUM_GUARD_SKILLS, {-1, 0x1D40A, -1, 0x1D2FC, -1, 0x19CA6});
++		process(&custom_saved.advprob      , 2*NUM_GUARD_SKILLS, {-1, 0x1D422, -1, 0x1D314, -1, 0x19CBE});
++		process(&custom_saved.refractimer  , 2*NUM_GUARD_SKILLS, {-1, 0x1D43A, -1, 0x1D32C, -1, 0x19CD6});
++		process(&custom_saved.extrastrength, 2*NUM_GUARD_SKILLS, {-1, 0x1D452, -1, 0x1D344, -1, 0x19CEE});
++
+ #undef process
+ 		free(exe_memory);
+ 	}
+@@ -667,7 +685,7 @@ void load_mod_options() {
+ 	if (use_custom_levelset) {
+ 		// find the folder containing the mod's files
+ 		char folder_name[POP_MAX_PATH];
+-		snprintf(folder_name, sizeof(folder_name), "%s/%s", mods_folder, levelset_name);
++		snprintf_check(folder_name, sizeof(folder_name), "%s/%s", mods_folder, levelset_name);
+ 		const char* located_folder_name = locate_file(folder_name);
+ 		bool ok = false;
+ 		struct stat info;
+@@ -675,12 +693,12 @@ void load_mod_options() {
+ 			if (S_ISDIR(info.st_mode)) {
+ 				// It's a directory
+ 				ok = true;
+-				strncpy(mod_data_path, located_folder_name, sizeof(mod_data_path));
++				snprintf_check(mod_data_path, sizeof(mod_data_path), "%s", located_folder_name);
+ 				// Try to load PRINCE.EXE (DOS)
+ 				load_dos_exe_modifications(located_folder_name);
+ 				// Try to load mod.ini
+ 				char mod_ini_filename[POP_MAX_PATH];
+-				snprintf(mod_ini_filename, sizeof(mod_ini_filename), "%s/%s", located_folder_name, "mod.ini");
++				snprintf_check(mod_ini_filename, sizeof(mod_ini_filename), "%s/%s", located_folder_name, "mod.ini");
+ 				if (file_exists(mod_ini_filename)) {
+ 					// Nearly all mods would want to use custom options, so always allow them.
+ 					use_custom_options = 1;
+--- prince-of-persia-1.20+20200620.orig/src/replay.c
++++ prince-of-persia-1.20+20200620/src/replay.c
+@@ -81,21 +81,33 @@ typedef struct replay_info_type {
+ 
+ #define REPLAY_HEADER_ERROR_MESSAGE_MAX 512
+ 
++#define fread_check(dst, size, elements, fp)	do {		\
++		size_t __count;					\
++		__count = fread(dst, size, elements, fp);	\
++		if (__count != (elements)) {			\
++			if (error_message != NULL) {		\
++				snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,\
++					       #dst " missing -- not a valid replay file!");\
++			}					\
++                }						\
++                return 0; /* incompatible file */		\
++	} while (0)
++
+ int read_replay_header(replay_header_type* header, FILE* fp, char* error_message) {
+ 	// Explicitly go to the beginning, because the current filepos might be nonzero.
+ 	fseek(fp, 0, SEEK_SET);
+ 	// read the magic number
+ 	char magic[3] = "";
+-	fread(magic, 3, 1, fp);
++	fread_check(magic, 3, 1, fp);
+ 	if (strncmp(magic, replay_magic_number, 3) != 0) {
+ 		if (error_message != NULL) {
+-			snprintf(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX, "not a valid replay file!");
++			snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX, "not a valid replay file!");
+ 		}
+ 		return 0; // incompatible, magic number not correct!
+ 	}
+ 	// read the unique number associated with this SDLPoP implementation / fork (for normal SDLPoP: 0)
+ 	word class;
+-	fread(&class, sizeof(class), 1, fp);
++	fread_check(&class, sizeof(class), 1, fp);
+ 	// read the format version number
+ 	byte version_number = (byte) fgetc(fp);
+ 	// read the format deprecation number
+@@ -107,18 +119,18 @@ int read_replay_header(replay_header_typ
+ 	// read the levelset_name
+ 	byte len_read = (byte) fgetc(fp);
+ 	header->uses_custom_levelset = (len_read != 0);
+-	fread(header->levelset_name, sizeof(char), len_read, fp);
++	fread_check(header->levelset_name, sizeof(char), len_read, fp);
+ 	header->levelset_name[len_read] = '\0';
+ 
+ 	// read the implementation_name
+ 	len_read = (byte) fgetc(fp);
+-	fread(header->implementation_name, sizeof(char), len_read, fp);
++	fread_check(header->implementation_name, sizeof(char), len_read, fp);
+ 	header->implementation_name[len_read] = '\0';
+ 
+ 	if (class != replay_format_class) {
+ 		// incompatible, replay format is associated with a different implementation of SDLPoP
+ 		if (error_message != NULL) {
+-			snprintf(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
++			snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
+ 			         "replay created with \"%s\"...\nIncompatible replay class identifier! (expected %d, found %d)",
+ 			         header->implementation_name, replay_format_class, class);
+ 		}
+@@ -128,7 +140,7 @@ int read_replay_header(replay_header_typ
+ 	if (version_number < REPLAY_FORMAT_MIN_VERSION) {
+ 		// incompatible, replay format is too old
+ 		if (error_message != NULL) {
+-			snprintf(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
++			snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
+ 			         "replay created with \"%s\"...\nReplay format version too old! (minimum %d, found %d)",
+ 			         header->implementation_name, REPLAY_FORMAT_MIN_VERSION, version_number);
+ 		}
+@@ -138,7 +150,7 @@ int read_replay_header(replay_header_typ
+ 	if (deprecation_number > REPLAY_FORMAT_DEPRECATION_NUMBER) {
+ 		// incompatible, replay format is too new
+ 		if (error_message != NULL) {
+-			snprintf(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
++			snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
+ 			         "replay created with \"%s\"...\nReplay deprecation number too new! (max %d, found %d)",
+ 			         header->implementation_name, REPLAY_FORMAT_DEPRECATION_NUMBER, deprecation_number);
+ 		}
+@@ -198,7 +210,7 @@ void list_replay_files() {
+ 		replay_info_type* replay_info = &replay_list[num_replay_files - 1]; // current replay file
+ 		memset( replay_info, 0, sizeof( replay_info_type ) );
+ 		// store the filename of the replay
+-		snprintf( replay_info->filename, POP_MAX_PATH, "%s/%s", replays_folder,
++		snprintf_check(replay_info->filename, POP_MAX_PATH, "%s/%s", replays_folder,
+ 					get_current_filename_from_directory_listing(directory_listing) );
+ 
+ 		// get the creation time
+@@ -272,7 +284,7 @@ void start_with_replay_file(const char *
+ 		int ok = read_replay_header(&header, replay_fp, header_error_message);
+ 		if (!ok) {
+ 			char error_message[REPLAY_HEADER_ERROR_MESSAGE_MAX];
+-			snprintf(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
++			snprintf_check(error_message, REPLAY_HEADER_ERROR_MESSAGE_MAX,
+ 			         "Error opening replay file: %s\n",
+ 			         header_error_message);
+ 			fprintf(stderr, "%s", error_message);
+@@ -621,6 +633,7 @@ void apply_replay_options() {
+ 	memcpy(levelset_name, replay_levelset_name, sizeof(levelset_name));
+ 	use_custom_levelset = (levelset_name[0] == '\0') ? 0 : 1;
+ 
++	load_mod_options(); // Load resources from the correct places if there is a mod name in the replay file. This also prevents unwanted switching to PC Speaker mode.
+ 	reload_resources();
+ }
+ 
+@@ -648,6 +661,7 @@ static void print_remaining_time() {
+ }
+ 
+ void start_replay() {
++	stop_sounds(); // Don't crash if the intro music is interrupted by Tab in PC Speaker mode.
+ 	if (!enable_replay) return;
+ 	need_start_replay = 0;
+ 	if (!is_validate_mode) {
+@@ -769,7 +783,7 @@ int save_recorded_replay() {
+ 	}
+ 
+ 	char full_filename[POP_MAX_PATH] = "";
+-	snprintf(full_filename, sizeof(full_filename), "%s/%s.p1r", replays_folder, input_filename);
++	snprintf_check(full_filename, sizeof(full_filename), "%s/%s.p1r", replays_folder, input_filename);
+ 
+ 	// create the "replays" folder if it does not exist already
+ #if defined WIN32 || _WIN32 || WIN64 || _WIN64
+@@ -875,22 +889,22 @@ int load_replay() {
+ 		memcpy(replay_levelset_name, header.levelset_name, sizeof(header.levelset_name));
+ 
+ 		// load the savestate
+-		fread(&savestate_size, sizeof(savestate_size), 1, replay_fp);
+-		fread(savestate_buffer, savestate_size, 1, replay_fp);
++		fread_check(&savestate_size, sizeof(savestate_size), 1, replay_fp);
++		fread_check(savestate_buffer, savestate_size, 1, replay_fp);
+ 
+ 		// load the replay options, organized per section
+ 		for (int i = 0; i < COUNT(replay_options_sections); ++i) {
+ 			dword section_size = 0;
+-			fread(&section_size, sizeof(section_size), 1, replay_fp);
+-			fread(replay_options_sections[i].replay_data, section_size, 1, replay_fp);
++			fread_check(&section_size, sizeof(section_size), 1, replay_fp);
++			fread_check(replay_options_sections[i].replay_data, section_size, 1, replay_fp);
+ 			replay_options_sections[i].data_size = section_size;
+ 		}
+ 
+ 		// load the rest of the replay data
+-		fread(&start_level, sizeof(start_level), 1, replay_fp);
+-		fread(&saved_random_seed, sizeof(saved_random_seed), 1, replay_fp);
+-		fread(&num_replay_ticks, sizeof(num_replay_ticks), 1, replay_fp);
+-		fread(moves, num_replay_ticks, 1, replay_fp);
++		fread_check(&start_level, sizeof(start_level), 1, replay_fp);
++		fread_check(&saved_random_seed, sizeof(saved_random_seed), 1, replay_fp);
++		fread_check(&num_replay_ticks, sizeof(num_replay_ticks), 1, replay_fp);
++		fread_check(moves, num_replay_ticks, 1, replay_fp);
+ 		fclose(replay_fp);
+ 		replay_fp = NULL;
+ 		replay_file_open = 0;
+--- prince-of-persia-1.20+20200620.orig/src/screenshot.c
++++ prince-of-persia-1.20+20200620/src/screenshot.c
+@@ -364,7 +364,7 @@ void draw_extras() {
+ 	}
+ 
+ 	// room number
+-	char room_num[4];
++	char room_num[6];
+ 	snprintf(room_num, sizeof(room_num), "%d", drawn_room);
+ 	rect_type text_rect = {10, 10, 21, 30};
+ 	method_5_rect(&text_rect, 0, color_8_darkgray);
+--- prince-of-persia-1.20+20200620.orig/src/seg000.c
++++ prince-of-persia-1.20+20200620/src/seg000.c
+@@ -344,7 +344,7 @@ const char* get_quick_path(char* custom_
+ 		return quick_file;
+ 	}
+ 	// if playing a custom levelset, try to use the mod folder
+-	snprintf(custom_path_buffer, max_len, "%s/%s", mod_data_path, quick_file /*QUICKSAVE.SAV*/ );
++	snprintf_check(custom_path_buffer, max_len, "%s/%s", mod_data_path, quick_file /*QUICKSAVE.SAV*/ );
+ 	return custom_path_buffer;
+ }
+ 
+@@ -1956,7 +1956,7 @@ const char* get_save_path(char* custom_p
+ 		return save_file;
+ 	}
+ 	// if playing a custom levelset, try to use the mod folder
+-	snprintf(custom_path_buffer, max_len, "%s/%s", mod_data_path, save_file /*PRINCE.SAV*/ );
++	snprintf_check(custom_path_buffer, max_len, "%s/%s", mod_data_path, save_file /*PRINCE.SAV*/ );
+ 	return custom_path_buffer;
+ }
+ 
+--- prince-of-persia-1.20+20200620.orig/src/seg001.c
++++ prince-of-persia-1.20+20200620/src/seg001.c
+@@ -47,8 +47,6 @@ SDL_COMPILE_TIME_ASSERT(hof_size, sizeof
+ #pragma pack(pop)
+ 
+ #define MAX_HOF_COUNT 6
+-// data:405E
+-short hof_count;
+ // data:589A
+ hof_type hof[MAX_HOF_COUNT];
+ 
+@@ -769,7 +767,7 @@ const char* get_hof_path(char* custom_pa
+ 		return hof_file;
+ 	}
+ 	// if playing a custom levelset, try to use the mod folder
+-	snprintf(custom_path_buffer, max_len, "%s/%s", mod_data_path, hof_file /*PRINCE.HOF*/ );
++	snprintf_check(custom_path_buffer, max_len, "%s/%s", mod_data_path, hof_file /*PRINCE.HOF*/ );
+ 	return custom_path_buffer;
+ }
+ 
+--- prince-of-persia-1.20+20200620.orig/src/seg002.c
++++ prince-of-persia-1.20+20200620/src/seg002.c
+@@ -20,6 +20,7 @@ The authors of this program may be conta
+ 
+ #include "common.h"
+ 
++/*
+ // data:0E32
+ const word strikeprob  [] = { 61,100, 61, 61, 61, 40,100,220,  0, 48, 32, 48};
+ // data:0E4A
+@@ -34,6 +35,7 @@ const word advprob     [] = {255,200,200
+ const word refractimer [] = { 16, 16, 16, 16,  8,  8,  8,  8,  0,  8,  0,  0};
+ // data:0EC2
+ const word extrastrength[] = {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0};
++*/
+ 
+ // seg002:0000
+ void __pascal far do_init_shad(const byte *source,int seq_index) {
+@@ -48,7 +50,7 @@ void __pascal far do_init_shad(const byt
+ 
+ // seg002:0044
+ void __pascal far get_guard_hp() {
+-	guardhp_delta = guardhp_curr = guardhp_max = extrastrength[guard_skill] + custom->tbl_guard_hp[current_level];
++	guardhp_delta = guardhp_curr = guardhp_max = custom->extrastrength[guard_skill] + custom->tbl_guard_hp[current_level];
+ }
+ 
+ // data:0EEA
+@@ -182,7 +184,8 @@ void __pascal far enter_guard() {
+ 	curr_guard_color &= 0x0F; // added; only least significant 4 bits are used for guard color
+ 
+ 	// level 3 has skeletons with infinite lives
+-	if (current_level == 3) {
++	//if (current_level == 3) {
++	if (custom->tbl_guard_type[current_level] == 2) {
+ 		Char.charid = charid_4_skeleton;
+ 	} else {
+ 		Char.charid = charid_2_guard;
+@@ -201,7 +204,7 @@ void __pascal far enter_guard() {
+ 	}
+ 	play_seq();
+ 	guard_skill = level.guards_skill[room_minus_1];
+-	if (guard_skill >= 12) {
++	if (guard_skill >= NUM_GUARD_SKILLS) {
+ 		guard_skill = 3;
+ 	}
+ 	frame = Char.frame;
+@@ -837,7 +840,7 @@ void __pascal far autocontrol_guard_kid_
+ // seg002:0AF5
+ void __pascal far guard_advance() {
+ 	if (guard_skill == 0 || kid_sword_strike == 0) {
+-		if (advprob[guard_skill] > prandom(255)) {
++		if (custom->advprob[guard_skill] > prandom(255)) {
+ 			move_1_forward();
+ 		}
+ 	}
+@@ -849,11 +852,11 @@ void __pascal far guard_block() {
+ 	opp_frame = Opp.frame;
+ 	if (opp_frame == frame_152_strike_2 || opp_frame == frame_153_strike_3 || opp_frame == frame_162_block_to_strike) {
+ 		if (justblocked != 0) {
+-			if (impblockprob[guard_skill] > prandom(255)) {
++			if (custom->impblockprob[guard_skill] > prandom(255)) {
+ 				move_3_up();
+ 			}
+ 		} else {
+-			if (blockprob[guard_skill] > prandom(255)) {
++			if (custom->blockprob[guard_skill] > prandom(255)) {
+ 				move_3_up();
+ 			}
+ 		}
+@@ -868,11 +871,11 @@ void __pascal far guard_strike() {
+ 	if (opp_frame == frame_169_begin_block || opp_frame == frame_151_strike_1) return;
+ 	char_frame = Char.frame;
+ 	if (char_frame == frame_161_parry || char_frame == frame_150_parry) {
+-		if (restrikeprob[guard_skill] > prandom(255)) {
++		if (custom->restrikeprob[guard_skill] > prandom(255)) {
+ 			move_6_shift();
+ 		}
+ 	} else {
+-		if (strikeprob[guard_skill] > prandom(255)) {
++		if (custom->strikeprob[guard_skill] > prandom(255)) {
+ 			move_6_shift();
+ 		}
+ 	}
+@@ -929,7 +932,7 @@ void __pascal far check_sword_hurt() {
+ 		loadshad();
+ 		hurt_by_sword();
+ 		saveshad();
+-		guard_refrac = refractimer[guard_skill];
++		guard_refrac = custom->refractimer[guard_skill];
+ 	} else {
+ 		if (Kid.action == actions_99_hurt) {
+ 			loadkid();
+--- prince-of-persia-1.20+20200620.orig/src/seg008.c
++++ prince-of-persia-1.20+20200620/src/seg008.c
+@@ -1391,8 +1391,8 @@ void __pascal far add_drect(rect_type *s
+ 
+ // seg008:1D29
+ void __pascal far draw_leveldoor() {
+-	word var_6;
+-	word ybottom;
++	short var_6;
++	short ybottom;
+ 	ybottom = draw_main_y - 13;
+ 	leveldoor_right = (draw_xh<<3)+48;
+ 	if (custom->tbl_level_type[current_level]) leveldoor_right += 8;
+--- prince-of-persia-1.20+20200620.orig/src/seg009.c
++++ prince-of-persia-1.20+20200620/src/seg009.c
+@@ -42,7 +42,7 @@ bool found_exe_dir = false;
+ 
+ void find_exe_dir() {
+ 	if (found_exe_dir) return;
+-	strncpy(exe_dir, g_argv[0], sizeof(exe_dir));
++	snprintf_check(exe_dir, sizeof(exe_dir), "%s", g_argv[0]);
+ 	char* last_slash = NULL;
+ 	char* pos = exe_dir;
+ 	for (char c = *pos; c != '\0'; c = *(++pos)) {
+@@ -67,7 +67,7 @@ const char* locate_file_(const char* fil
+ 		// If failed, it may be that SDLPoP is being run from the wrong different working directory.
+ 		// We can try to rescue the situation by loading from the directory of the executable.
+ 		find_exe_dir();
+-        snprintf(path_buffer, buffer_size, "%s/%s", exe_dir, filename);
++        snprintf_check(path_buffer, buffer_size, "%s/%s", exe_dir, filename);
+         return (const char*) path_buffer;
+ 	}
+ }
+@@ -119,7 +119,7 @@ struct directory_listing_type {
+ directory_listing_type* create_directory_listing_and_find_first_file(const char* directory, const char* extension) {
+ 	directory_listing_type* directory_listing = calloc(1, sizeof(directory_listing_type));
+ 	char search_pattern[POP_MAX_PATH];
+-	snprintf(search_pattern, POP_MAX_PATH, "%s/*.%s", directory, extension);
++	snprintf_check(search_pattern, POP_MAX_PATH, "%s/*.%s", directory, extension);
+ 	WCHAR* search_pattern_UTF16 = WIN_UTF8ToString(search_pattern);
+ 	directory_listing->search_handle = FindFirstFileW( search_pattern_UTF16, &directory_listing->find_data );
+ 	SDL_free(search_pattern_UTF16);
+@@ -327,11 +327,11 @@ static FILE* open_dat_from_root_or_data_
+ 	// if failed, try if the DAT file can be opened in the data/ directory, instead of the main folder
+ 	if (fp == NULL) {
+ 		char data_path[POP_MAX_PATH];
+-		snprintf(data_path, sizeof(data_path), "data/%s", filename);
++		snprintf_check(data_path, sizeof(data_path), "data/%s", filename);
+ 
+         if (!file_exists(data_path)) {
+             find_exe_dir();
+-            snprintf(data_path, sizeof(data_path), "%s/data/%s", exe_dir, filename);
++            snprintf_check(data_path, sizeof(data_path), "%s/data/%s", exe_dir, filename);
+         }
+ 
+ 		// verify that this is a regular file and not a directory (otherwise, don't open)
+@@ -354,7 +354,7 @@ dat_type *__pascal open_dat(const char *
+ 		if (!skip_mod_data_files) {
+ 			char filename_mod[POP_MAX_PATH];
+ 			// before checking the root directory, first try mods/MODNAME/
+-			snprintf(filename_mod, sizeof(filename_mod), "%s/%s", mod_data_path, filename);
++			snprintf_check(filename_mod, sizeof(filename_mod), "%s/%s", mod_data_path, filename);
+ 			fp = fopen(filename_mod, "rb");
+ 		}
+ 		if (fp == NULL && !skip_normal_data_files) {
+@@ -365,7 +365,7 @@ dat_type *__pascal open_dat(const char *
+ 	dat_table_type* dat_table = NULL;
+ 
+ 	dat_type* pointer = (dat_type*) calloc(1, sizeof(dat_type));
+-	strncpy(pointer->filename, filename, sizeof(pointer->filename));
++	snprintf_check(pointer->filename, sizeof(pointer->filename), "%s", filename);
+ 	pointer->next_dat = dat_chain_ptr;
+ 	dat_chain_ptr = pointer;
+ 
+@@ -1943,7 +1943,6 @@ void init_digi() {
+ 
+ const int sound_channel = 0;
+ const int max_sound_id = 58;
+-char** sound_names = NULL;
+ 
+ void load_sound_names() {
+ 	const char* names_path = locate_file("data/music/names.txt");
+@@ -1992,11 +1991,11 @@ sound_buffer_type* load_sound(int index)
+ 				char filename[POP_MAX_PATH];
+ 				if (!skip_mod_data_files) {
+ 					// before checking the root directory, first try mods/MODNAME/
+-					snprintf(filename, sizeof(filename), "%s/music/%s.ogg", mod_data_path, sound_name(index));
++					snprintf_check(filename, sizeof(filename), "%s/music/%s.ogg", mod_data_path, sound_name(index));
+ 					fp = fopen(filename, "rb");
+ 				}
+ 				if (fp == NULL && !skip_normal_data_files) {
+-					snprintf(filename, sizeof(filename), "data/music/%s.ogg", sound_name(index));
++					snprintf_check(filename, sizeof(filename), "data/music/%s.ogg", sound_name(index));
+ 					fp = fopen(locate_file(filename), "rb");
+ 				}
+ 				if (fp == NULL) {
+@@ -2572,7 +2571,7 @@ void load_from_opendats_metadata(int res
+ 			if (len >= 5 && filename_no_ext[len-4] == '.') {
+ 				filename_no_ext[len-4] = '\0'; // terminate, so ".DAT" is deleted from the filename
+ 			}
+-			snprintf(image_filename,sizeof(image_filename),"data/%s/res%d.%s",filename_no_ext, resource_id, extension);
++			snprintf_check(image_filename,sizeof(image_filename),"data/%s/res%d.%s",filename_no_ext, resource_id, extension);
+ 			if (!use_custom_levelset) {
+ 				//printf("loading (binary) %s",image_filename);
+ 				fp = fopen(locate_file(image_filename), "rb");
+@@ -2581,7 +2580,7 @@ void load_from_opendats_metadata(int res
+ 				if (!skip_mod_data_files) {
+ 					char image_filename_mod[POP_MAX_PATH];
+ 					// before checking data/, first try mods/MODNAME/data/
+-					snprintf(image_filename_mod, sizeof(image_filename_mod), "%s/%s", mod_data_path, image_filename);
++					snprintf_check(image_filename_mod, sizeof(image_filename_mod), "%s/%s", mod_data_path, image_filename);
+ 					//printf("loading (binary) %s",image_filename_mod);
+ 					fp = fopen(locate_file(image_filename_mod), "rb");
+ 				}
+@@ -3246,7 +3245,7 @@ void process_events() {
+ 					}
+ 					// Disregard SDL_JOYAXISMOTION events within joystick 'dead zone'
+ 					int joy_x = joy_axis[SDL_CONTROLLER_AXIS_LEFTX];
+-					int joy_y = joy_axis[SDL_CONTROLLER_AXIS_LEFTX];
++					int joy_y = joy_axis[SDL_CONTROLLER_AXIS_LEFTY];
+ 					if ((dword)(joy_x*joy_x) + (dword)(joy_y*joy_y) < (dword)(joystick_threshold*joystick_threshold)) {
+ 						break;
+ 					}
+--- prince-of-persia-1.20+20200620.orig/src/types.h
++++ prince-of-persia-1.20+20200620/src/types.h
+@@ -1191,6 +1191,8 @@ typedef struct fixes_options_type {
+ 	byte fix_exit_door;
+ } fixes_options_type;
+ 
++#define NUM_GUARD_SKILLS 12
++
+ typedef struct custom_options_type {
+ 	word start_minutes_left;
+ 	word start_ticks_left;
+@@ -1270,6 +1272,16 @@ typedef struct custom_options_type {
+ 	byte tbl_cutscenes_by_index[16];
+ 	byte tbl_entry_pose[16];
+ 	sbyte tbl_seamless_exit[16];
++
++	// guard skills
++	word strikeprob   [NUM_GUARD_SKILLS];
++	word restrikeprob [NUM_GUARD_SKILLS];
++	word blockprob    [NUM_GUARD_SKILLS];
++	word impblockprob [NUM_GUARD_SKILLS];
++	word advprob      [NUM_GUARD_SKILLS];
++	word refractimer  [NUM_GUARD_SKILLS];
++	word extrastrength[NUM_GUARD_SKILLS];
++
+ } custom_options_type;
+ #pragma pack(pop)
+ 

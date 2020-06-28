@@ -1,0 +1,56 @@
+Description: make sure the game can find the installation directory.
+Author: Kees Cook <kees@outflux.net>
+Forwarded: not-needed
+
+diff --git a/src/seg009.c b/src/seg009.c
+index 3714587..d635e80 100644
+--- a/src/seg009.c
++++ b/src/seg009.c
+@@ -61,15 +61,41 @@ bool file_exists(const char* filename) {
+ }
+ 
+ const char* locate_file_(const char* filename, char* path_buffer, int buffer_size) {
+-	if(file_exists(filename)) {
++	/* First try from the local user config directory. */
++	char *home = getenv("HOME");
++	if (home) {
++		snprintf_check(path_buffer, buffer_size, "%s/.config/prince-of-persia", home);
++		if (!file_exists(path_buffer)) {
++			/* Create config directory if it does not exist. */
++			snprintf_check(path_buffer, buffer_size, "%s/.config", home);
++			int ret = mkdir(path_buffer, S_IRWXU);
++			if (ret < 0 && errno != EEXIST)
++				return filename;
++			snprintf_check(path_buffer, buffer_size, "%s/.config/prince-of-persia", home);
++			ret = mkdir(path_buffer, S_IRWXU);
++			if (ret < 0 && errno != EEXIST)
++				return filename;
++		}
++	        snprintf_check(path_buffer, buffer_size, "%s/.config/prince-of-persia/%s", home, filename);
++		if (file_exists(path_buffer))
++			goto out;
++	}
++
++	/* Next check installation directory. */
++        snprintf_check(path_buffer, buffer_size, "/usr/share/prince-of-persia/%s", filename);
++	if (file_exists(path_buffer))
++		goto out;
++
++	/* Next, check local directory. */
++	if (file_exists(filename))
+ 		return filename;
+-	} else {
+-		// If failed, it may be that SDLPoP is being run from the wrong different working directory.
+-		// We can try to rescue the situation by loading from the directory of the executable.
+-		find_exe_dir();
++
++	// If failed, it may be that SDLPoP is being run from the wrong different working directory.
++	// We can try to rescue the situation by loading from the directory of the executable.
++	find_exe_dir();
+         snprintf_check(path_buffer, buffer_size, "%s/%s", exe_dir, filename);
++out:
+         return (const char*) path_buffer;
+-	}
+ }
+ 
+ #ifdef _WIN32
